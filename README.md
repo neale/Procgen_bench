@@ -30,11 +30,12 @@ pip install -r requirements.txt
 
 ```examples.py``` contains examples for all the implemented algorithms.  
 ```Dockerfile``` contains the environment for generating the curves below.  
-```
+
 # Credit
 
 DeepRL framework orginally authored by: 
 
+```
 @misc{deeprl,
   author = {Zhang, Shangtong},
   title = {Modularized Implementation of Deep RL Algorithms in PyTorch},
