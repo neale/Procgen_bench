@@ -1,0 +1,6 @@
+2020-08-17 21:45:17,226 - root - INFO: steps 0, 102300097.56 steps/s
+2020-08-17 21:45:21,411 - root - INFO: steps 1000, 239.92 steps/s
+2020-08-17 21:45:22,759 - root - INFO: steps 2000, 741.97 steps/s
+2020-08-17 21:45:24,116 - root - INFO: steps 3000, 736.77 steps/s
+2020-08-17 21:45:25,476 - root - INFO: steps 4000, 736.12 steps/s
+2020-08-17 21:45:26,832 - root - INFO: steps 5000, 737.40 steps/s
