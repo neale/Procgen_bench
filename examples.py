@@ -582,8 +582,10 @@ def ppo_pixel(**kwargs):
     config.log_interval = config.rollout_length * config.num_workers
     config.shared_repr = True
     config.max_steps = int(2e8)
-    config.record_train = True
-    config.record_eval_npy = True
+    config.record_train = False
+    config.record_eval_npy = False
+    config.load_agent = True
+    config.load_step = 128000000 
     run_steps(PPOAgent(config))
 
 

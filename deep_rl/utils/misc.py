@@ -19,6 +19,10 @@ def run_steps(agent):
     agent_name = agent.__class__.__name__
     t0 = time.time()
     save_tag = 'data/%s2-%s-%d' % (agent_name, config.tag, agent.total_steps)
+    if config.load_agent:
+        assert hasattr(config, 'load_step'), "need load step to load agent"
+        print ('loading agent at {} steps'.format(config.load_step))
+        agent.load(save_tag+'/{}/'.format(config.load_step))
     while True:
         if config.save_interval and not agent.total_steps % config.save_interval:
             agent.save(save_tag + '/{}/'.format(agent.total_steps))
