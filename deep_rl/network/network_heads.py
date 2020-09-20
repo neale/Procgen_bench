@@ -255,6 +255,58 @@ class CategoricalActorCriticNet(nn.Module, BaseNet):
         return {'action': action,
                 'log_pi_a': log_prob,
                 'entropy': entropy,
+                'features': phi,
+                'actor_logits': logits,
+                'v': v}
+
+def init(module, weight_init, bias_init, gain=1):
+    weight_init(module.weight.data, gain=gain)
+    bias_init(module.bias.data)
+    return module
+
+class CategoricalImpalaNet(nn.Module, BaseNet):
+    def __init__(self,
+                 state_dim,
+                 action_dim,
+                 phi_body=None,
+                 actor_body=None,
+                 critic_body=None):
+        super(CategoricalImpalaNet, self).__init__()
+        if phi_body is None: phi_body = DummyBody(state_dim)
+        if actor_body is None: actor_body = DummyBody(phi_body.feature_dim)
+        if critic_body is None: critic_body = DummyBody(phi_body.feature_dim)
+        self.phi_body = phi_body
+        self.actor_body = actor_body
+        self.critic_body = critic_body
+        init_ = lambda m: init(m, nn.init.orthogonal_, lambda x: nn.init.constant_(x, 0), nn.init.calculate_gain('relu'))
+        init_critic_ = lambda m: init(m, nn.init.orthogonal_, lambda x: nn.init.constant_(x, 0))
+        init_actor_ = lambda m: init(m, nn.init.orthogonal_, lambda x: nn.init.constant_(x, 0), gain=0.01)
+        self.fc_action = init_actor_(nn.Linear(actor_body.feature_dim, action_dim))
+        self.fc_critic = init_critic_(nn.Linear(critic_body.feature_dim, 1))
+
+        self.actor_params = list(self.actor_body.parameters()) + list(self.fc_action.parameters())
+        self.critic_params = list(self.critic_body.parameters()) + list(self.fc_critic.parameters())
+        self.phi_params = list(self.phi_body.parameters())
+        
+        self.to(Config.DEVICE)
+
+    def forward(self, obs, action=None):
+        obs = tensor(obs)
+        phi = self.phi_body(obs)
+        phi_a = self.actor_body(phi)
+        phi_v = self.critic_body(phi)
+        logits = self.fc_action(phi_a)
+        v = self.fc_critic(phi_v)
+        dist = torch.distributions.Categorical(logits=logits)
+        if action is None:
+            action = dist.sample()
+        log_prob = dist.log_prob(action).unsqueeze(-1)
+        entropy = dist.entropy().unsqueeze(-1)
+        return {'action': action,
+                'log_pi_a': log_prob,
+                'entropy': entropy,
+                'features': phi,
+                'actor_logits': logits,
                 'v': v}
 
 

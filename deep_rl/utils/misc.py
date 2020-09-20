@@ -18,14 +18,15 @@ def run_steps(agent):
     config = agent.config
     agent_name = agent.__class__.__name__
     t0 = time.time()
+    save_tag = 'data/%s2-%s-%d' % (agent_name, config.tag, agent.total_steps)
     while True:
         if config.save_interval and not agent.total_steps % config.save_interval:
-            agent.save('data/%s-%s-%d' % (agent_name, config.tag, agent.total_steps))
+            agent.save(save_tag + '/{}/'.format(agent.total_steps))
         if config.log_interval and not agent.total_steps % config.log_interval:
             agent.logger.info('steps %d, %.2f steps/s' % (agent.total_steps, config.log_interval / (time.time() - t0)))
             t0 = time.time()
         if config.eval_interval and not agent.total_steps % config.eval_interval:
-            agent.eval_episodes()
+            agent.eval_episodes(save_tag)
         if config.max_steps and agent.total_steps >= config.max_steps:
             agent.close()
             break

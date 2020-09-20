@@ -24,7 +24,13 @@ from ..utils import *
 
 
 # adapted from https://github.com/ikostrikov/pytorch-a2c-ppo-acktr/blob/master/envs.py
-def make_env(env_id, seed, rank, episode_life=True):
+def make_env(
+    env_id,
+    seed,
+    rank,
+    episode_life=True,
+    num_levels=200,
+    dist='easy'):
     def _thunk():
         random_seed(seed)
         if env_id.startswith("dm"):
@@ -37,8 +43,8 @@ def make_env(env_id, seed, rank, episode_life=True):
             env = gym.make(
                     env_id,
                     start_level=0,
-                    num_levels=100,
-                    distribution_mode='easy')
+                    num_levels=num_levels,
+                    distribution_mode=dist)
         else:
             is_procgen = False
             env = gym.make(env_id)
@@ -164,7 +170,7 @@ class Task:
     def __init__(self,
                  name,
                  num_envs=1,
-                 n_levels=100,
+                 n_levels=200,
                  mode='easy',
                  single_process=True,
                  log_dir=None,
@@ -175,7 +181,7 @@ class Task:
         if log_dir is not None:
             mkdir(log_dir)
         
-        envs = [make_env(name, seed, i, episode_life) for i in range(num_envs)]
+        envs = [make_env(name, seed, i, episode_life, n_levels, dist=mode) for i in range(num_envs)]
         if single_process:
             Wrapper = DummyVecEnv
         else:

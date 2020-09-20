@@ -26,12 +26,30 @@ class PPOAgent(BaseAgent):
         if config.shared_repr:
             self.lr_scheduler = torch.optim.lr_scheduler.LambdaLR(self.opt, lambda step: 1 - step / config.max_steps)
 
+    def eval_step(self, state):
+        self.config.state_normalizer.set_read_only()
+        state = self.config.state_normalizer(state)
+        action = self.network(state)['action']
+        self.config.state_normalizer.unset_read_only()
+        return to_np(action)
+
+    def eval_with_record(self, state):
+        self.config.state_normalizer.set_read_only()
+        state = self.config.state_normalizer(state)
+        stats = self.network(state)
+        action = stats['action']
+        features = stats['features']
+        self.config.state_normalizer.unset_read_only()
+        return to_np(action), to_np(features), None
+
     def step(self):
         config = self.config
         storage = Storage(config.rollout_length)
         states = self.states
         for _ in range(config.rollout_length):
             prediction = self.network(states)
+            del prediction['features']
+            del prediction['actor_logits']
             next_states, rewards, terminals, info = self.task.step(to_np(prediction['action']))
             self.record_online_return(info)
             # print (info)
@@ -46,6 +64,8 @@ class PPOAgent(BaseAgent):
 
         self.states = states
         prediction = self.network(states)
+        del prediction['features']
+        del prediction['actor_logits']
         storage.feed(prediction)
         storage.placeholder()
 

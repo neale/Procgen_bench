@@ -3,7 +3,7 @@
 # Permission given to modify the code as long as you keep this        #
 # declaration at the top                                              #
 #######################################################################
-
+import os
 import torch
 import numpy as np
 from ..utils import *
@@ -22,18 +22,65 @@ class BaseAgent:
         close_obj(self.task)
 
     def save(self, filename):
-        torch.save(self.network.state_dict(), '%s.model' % (filename))
-        with open('%s.stats' % (filename), 'wb') as f:
+        os.makedirs(filename, exist_ok=True)
+        torch.save(self.network.state_dict(), '%s/agent.model' % (filename))
+        with open('%s/agent.stats' % (filename), 'wb') as f:
             pickle.dump(self.config.state_normalizer.state_dict(), f)
 
     def load(self, filename):
-        state_dict = torch.load('%s.model' % filename, map_location=lambda storage, loc: storage)
+        state_dict = torch.load('%s/agent.model' % filename, map_location=lambda storage, loc: storage)
         self.network.load_state_dict(state_dict)
-        with open('%s.stats' % (filename), 'rb') as f:
+        with open('%s/agent.stats' % (filename), 'rb') as f:
             self.config.state_normalizer.load_state_dict(pickle.load(f))
+    
+    def save_data(self, log_data, ep, save_tag, eval=True):
+        states, features, extra = log_data
+        states = np.stack(states)
+        features = np.stack(features)
+        if len(extra) > 0:
+            extra = np.stack(extra)
+        else:
+            extra = None
+
+        print ('states', states.shape)
+        print ('features', features.shape)
+        print ('tag', save_tag)
+
+        if eval:
+            mode = 'eval'
+        else:
+            mode = 'train'
+        
+        path = save_tag+'_{}'.format(self.total_steps)
+        os.makedirs(path, exist_ok=True)
+        np.save(path+'/{}_ep_{}_states.npy'.format(mode, ep), states)
+        np.save(path+'/{}_ep_{}_features.npy'.format(mode, ep), features)
 
     def eval_step(self, state):
         raise NotImplementedError
+
+    def eval_with_record(self, state):
+        raise NotImplementedError
+
+    def eval_and_record_episode(self, training=False):
+        if training is False:
+            env = self.config.eval_env
+        else:
+            env = self.task
+        state = env.reset()
+        states_save = []
+        features_save = []
+        extra_save = []
+        while True:
+            action, features, extra = self.eval_with_record(state)
+            states_save.append(state[0])
+            features_save.append(features)
+            extra_save.append(extra)
+            state, reward, done, info = env.step(action)
+            ret = info[0]['episodic_return']
+            if ret is not None:
+                break
+        return ret, (states_save, features_save, extra_save)
 
     def eval_episode(self):
         env = self.config.eval_env
@@ -46,10 +93,20 @@ class BaseAgent:
                 break
         return ret
 
-    def eval_episodes(self):
+    def eval_episodes(self, save_tag):
         episodic_returns = []
         for ep in range(self.config.eval_episodes):
-            total_rewards = self.eval_episode()
+            if self.config.record_eval_npy:
+                total_rewards, log_data = self.eval_and_record_episode()
+                self.save_data(log_data, ep, save_tag)
+                if self.config.record_train:
+                    self.switch_task()
+                    total_rewards, log_data = self.eval_and_record_episode(training=True)
+                    self.save_data(log_data, ep, save_tag, eval=False)
+                    
+
+            else:
+                total_rewards = self.eval_episode()
             episodic_returns.append(np.sum(total_rewards))
         self.logger.info('steps %d, episodic_return_test %.2f(%.2f)' % (
             self.total_steps, np.mean(episodic_returns), np.std(episodic_returns) / np.sqrt(len(episodic_returns))

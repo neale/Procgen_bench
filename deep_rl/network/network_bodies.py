@@ -7,13 +7,91 @@
 from .network_utils import *
 
 
+class ResBlock(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(ResBlock, self).__init__()
+        self.conv1 = layer_init(nn.Conv2d(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=3, 
+            stride=1,
+            padding=1))
+
+        self.conv2 = layer_init(nn.Conv2d(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=3, 
+            stride=1,
+            padding=1))
+        
+        self.bn1 = nn.BatchNorm2d(in_channels)
+        self.bn2 = nn.BatchNorm2d(in_channels)
+
+    def forward(self, input):
+        x = F.relu(self.conv1(input))
+        x = self.bn1(x)
+        x = F.relu(self.conv2(x))
+        x = self.bn2(x)
+        return x + input
+
+
+class ImpalaBlock(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(ImpalaBlock, self).__init__()
+        self.conv1 = layer_init(nn.Conv2d(
+            in_channels=in_channels,
+             out_channels=out_channels,
+             kernel_size=3,
+             stride=1))
+        self.resblock1 = ResBlock(out_channels, out_channels)
+        self.resblock2 = ResBlock(out_channels, out_channels)
+        self.bn1 = nn.BatchNorm2d(out_channels)
+        
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = nn.MaxPool2d(kernel_size=3, stride=2)(x)
+        x = self.resblock1(x)
+        x = self.resblock2(x)
+        return x
+
+class ImpalaBody(nn.Module):
+    def __init__(self, in_channels=3, noisy_linear=False, hidden_dim=800):
+        super(ImpalaBody, self).__init__()
+        self.feature_dim = 256
+        self.block1 = ImpalaBlock(in_channels=in_channels, out_channels=16)
+        self.block2 = ImpalaBlock(in_channels=16, out_channels=32)
+        self.block3 = ImpalaBlock(in_channels=32, out_channels=32)
+        if noisy_linear:
+            self.fc = NoisyLinear(hidden_dim, self.feature_dim)
+        else:
+            self.fc = layer_init(nn.Linear(hidden_dim, self.feature_dim))
+        self.noisy_linear = noisy_linear
+        
+        #self.critic = init_critic_(nn.Linear(256, 1))
+        #self.actor = init_actor_(nn.Linear(256, n_actions))
+        
+    def reset_noise(self):
+        if self.noisy_linear:
+            self.fc.reset_noise()
+
+    def forward(self, x):
+        x = self.block1(x)
+        x = self.block2(x)
+        x = self.block3(x)
+        x = F.relu(x)
+        x = x.view(x.size(0), -1)
+        x = self.fc(x)
+        x = F.relu(x)
+        return x
+  
 class NatureConvBody(nn.Module):
-    def __init__(self, in_channels=4, noisy_linear=False, hidden_dim=1024):
+    def __init__(self, in_channels=4, noisy_linear=False, hidden_dim=4096):
         super(NatureConvBody, self).__init__()
         self.feature_dim = 512
-        self.conv1 = layer_init(nn.Conv2d(in_channels, 32, kernel_size=8, stride=4))
-        self.conv2 = layer_init(nn.Conv2d(32, 64, kernel_size=4, stride=2))
-        self.conv3 = layer_init(nn.Conv2d(64, 64, kernel_size=3, stride=1))
+        self.conv1 = layer_init(nn.Conv2d(in_channels, 128, kernel_size=8, stride=4))
+        self.conv2 = layer_init(nn.Conv2d(128, 256, kernel_size=4, stride=2))
+        self.conv3 = layer_init(nn.Conv2d(256, 256, kernel_size=3, stride=1))
         if noisy_linear:
             self.fc4 = NoisyLinear(hidden_dim, self.feature_dim)
         else:
