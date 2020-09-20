@@ -1,0 +1,5 @@
+data/
+*.npy
+*.npz
+*.model
+*.stats
